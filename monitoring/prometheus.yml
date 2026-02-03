@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Monitorar Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Monitorar Nginx Gateway
+  - job_name: 'nginx-gateway'
+    static_configs:
+      - targets: ['nginx-gateway:4500']
+    metrics_path: '/metrics'
+
+  # Monitorar MySQL (requer mysql_exporter)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql:3306']
+
+  # Monitorar Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']

@@ -1,0 +1,191 @@
+version: '3.8'
+
+services:
+  
+  mysql:
+    image: mysql:8.0
+    container_name: microservice-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./banco.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  
+  php-service-1:
+    build:
+      context: .
+      dockerfile: dockerfile.php
+    container_name: microservice-php-1
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      SERVICE_NAME: php-service-1
+    volumes:
+      - ./index.php:/var/www/html/index.php:ro
+      - ./health.php:/var/www/html/health.php:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo file_exists('/var/www/html/health.php') ? 'ok' : 'fail';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  
+  php-service-2:
+    build:
+      context: .
+      dockerfile: dockerfile.php
+    container_name: microservice-php-2
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      SERVICE_NAME: php-service-2
+    volumes:
+      - ./index.php:/var/www/html/index.php:ro
+      - ./health.php:/var/www/html/health.php:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo file_exists('/var/www/html/health.php') ? 'ok' : 'fail';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  
+  php-service-3:
+    build:
+      context: .
+      dockerfile: dockerfile.php
+    container_name: microservice-php-3
+    environment:
+      DB_HOST: mysql
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      SERVICE_NAME: php-service-3
+    volumes:
+      - ./index.php:/var/www/html/index.php:ro
+      - ./health.php:/var/www/html/health.php:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo file_exists('/var/www/html/health.php') ? 'ok' : 'fail';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  
+  nginx-gateway:
+    build:
+      context: .
+      dockerfile: dockerfile.nginx
+    container_name: microservice-gateway
+    ports:
+      - "4500:4500"
+    volumes:
+      - ./index.php:/var/www/html/index.php:ro
+      - ./health.php:/var/www/html/health.php:ro
+    depends_on:
+      - php-service-1
+      - php-service-2
+      - php-service-3
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: microservice-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  
+  grafana:
+    image: grafana/grafana:latest
+    container_name: microservice-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  
+  redis:
+    image: redis:7-alpine
+    container_name: microservice-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  prometheus_data:
+  grafana_data:
+  redis_data:
+
+networks:
+  microservices-network:
+    driver: bridge

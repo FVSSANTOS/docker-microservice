@@ -1,0 +1,17 @@
+FROM nginx:alpine
+
+
+RUN apk add --no-cache curl
+
+
+COPY nginx.conf /etc/nginx/nginx.conf
+
+
+RUN mkdir -p /var/log/nginx
+
+
+COPY health.html /usr/share/nginx/html/health.html
+
+EXPOSE 4500
+
+CMD ["nginx", "-g", "daemon off;"]
